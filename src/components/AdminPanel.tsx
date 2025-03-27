@@ -1,43 +1,21 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../contexts/AuthContext';
-import { apiService } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { fetchTasks, updateTask, deleteTask, updateTaskStatus } from '../store/taskSlice';
 import { Task } from '../types/Task';
 import TaskForm from './TaskForm';
 import './AdminPanel.css';
 
 const AdminPanel: React.FC = () => {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
   const [showForm, setShowForm] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
+  
+  const { tasks, isLoading } = useAppSelector(state => state.tasks);
+  const user = useAppSelector(state => state.auth.user);
 
-  const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ['tasks'],
-    queryFn: apiService.getTasks,
-  });
-
-  const updateTaskMutation = useMutation({
-    mutationFn: apiService.updateTask,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    },
-  });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: apiService.deleteTask,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    },
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ taskId, status }: { taskId: string; status: Task['status'] }) =>
-      apiService.updateTaskStatus(taskId, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
-    },
-  });
+  useEffect(() => {
+    dispatch(fetchTasks());
+  }, [dispatch]);
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
@@ -46,12 +24,19 @@ const AdminPanel: React.FC = () => {
 
   const handleDeleteTask = (taskId: string) => {
     if (window.confirm('Are you sure you want to delete this task?')) {
-      deleteTaskMutation.mutate(taskId);
+      dispatch(deleteTask(taskId));
     }
   };
 
   const handleStatusChange = (taskId: string, newStatus: Task['status']) => {
-    updateStatusMutation.mutate({ taskId, status: newStatus });
+    dispatch(updateTaskStatus({ taskId, status: newStatus }));
+  };
+
+  const handleTaskSubmit = (taskData: Omit<Task, 'id'>) => {
+    if (selectedTask) {
+      dispatch(updateTask({ ...taskData, id: selectedTask.id }));
+    }
+    setShowForm(false);
   };
 
   if (isLoading) {
@@ -145,13 +130,7 @@ const AdminPanel: React.FC = () => {
       {showForm && (
         <TaskForm
           task={selectedTask}
-          onSubmit={(taskData) => {
-            if (selectedTask) {
-              updateTaskMutation.mutate({ ...taskData, id: selectedTask.id });
-            }
-            setShowForm(false);
-            setSelectedTask(undefined);
-          }}
+          onSubmit={handleTaskSubmit}
           onClose={() => {
             setShowForm(false);
             setSelectedTask(undefined);
