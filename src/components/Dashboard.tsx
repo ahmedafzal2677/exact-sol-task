@@ -3,14 +3,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import TaskList from './TaskList';
 import TaskForm from './TaskForm';
 import { Task } from '../types/Task';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { deleteTask, updateTaskStatus } from '../store/taskSlice';
+import { useAppSelector } from '../store/hooks';
 import { apiService } from '../services/api';
 import { websocketService } from '../services/websocket';
 import './Dashboard.css';
 
 const Dashboard: React.FC = () => {
-  const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
@@ -53,15 +51,15 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     websocketService.connect();
 
-    const unsubscribeTaskUpdate = websocketService.subscribeToTaskUpdates((task) => {
+    const unsubscribeTaskUpdate = websocketService.subscribeToTaskUpdates(() => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     });
 
-    const unsubscribeTaskCreate = websocketService.subscribeToTaskCreation((task) => {
+    const unsubscribeTaskCreate = websocketService.subscribeToTaskCreation(() => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     });
 
-    const unsubscribeTaskDelete = websocketService.subscribeToTaskDeletion((taskId) => {
+    const unsubscribeTaskDelete = websocketService.subscribeToTaskDeletion(() => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     });
 

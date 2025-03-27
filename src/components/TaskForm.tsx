@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Task } from '../types/Task';
-import { useAppDispatch } from '../store/hooks';
-import { addTask, updateTask } from '../store/taskSlice';
 import { useAuth } from '../contexts/AuthContext';
 import './TaskForm.css';
 
@@ -12,7 +10,7 @@ interface TaskFormProps {
 }
 
 const TaskForm: React.FC<TaskFormProps> = ({ task, onClose, onSubmit }) => {
-  const dispatch = useAppDispatch();
+  // const dispatch = useAppDispatch();
   const { user } = useAuth();
   const [formData, setFormData] = useState<Omit<Task, 'id'>>({
     title: '',
