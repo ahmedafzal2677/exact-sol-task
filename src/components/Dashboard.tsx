@@ -1,22 +1,75 @@
 import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import TaskList from './TaskList';
 import TaskForm from './TaskForm';
 import { Task } from '../types/Task';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { fetchTasks, createTask, updateTask, deleteTask, updateTaskStatus } from '../store/taskSlice';
+import { useAppSelector } from '../store/hooks';
+import { apiService } from '../services/api';
+import { websocketService } from '../services/websocket';
 import './Dashboard.css';
 
 const Dashboard: React.FC = () => {
-  const dispatch = useAppDispatch();
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
-  
-  const { tasks, isLoading, error } = useAppSelector(state => state.tasks);
-  const user = useAppSelector(state => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user);
+
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: apiService.getTasks,
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: apiService.createTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const updateTaskMutation = useMutation({
+    mutationFn: apiService.updateTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: apiService.deleteTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: string; status: Task['status'] }) =>
+      apiService.updateTaskStatus(taskId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
 
   useEffect(() => {
-    dispatch(fetchTasks());
-  }, [dispatch]);
+    websocketService.connect();
+
+    const unsubscribeTaskUpdate = websocketService.subscribeToTaskUpdates(() => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    });
+
+    const unsubscribeTaskCreate = websocketService.subscribeToTaskCreation(() => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    });
+
+    const unsubscribeTaskDelete = websocketService.subscribeToTaskDeletion(() => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    });
+
+    return () => {
+      unsubscribeTaskUpdate();
+      unsubscribeTaskCreate();
+      unsubscribeTaskDelete();
+      websocketService.disconnect();
+    };
+  }, [queryClient]);
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
@@ -29,28 +82,15 @@ const Dashboard: React.FC = () => {
   };
 
   const handleDeleteTask = (taskId: string) => {
-    dispatch(deleteTask(taskId));
+    deleteTaskMutation.mutate(taskId);
   };
 
   const handleStatusChange = (taskId: string, newStatus: Task['status']) => {
-    dispatch(updateTaskStatus({ taskId, status: newStatus }));
-  };
-
-  const handleTaskSubmit = (taskData: Omit<Task, 'id'>) => {
-    if (selectedTask) {
-      dispatch(updateTask({ ...taskData, id: selectedTask.id }));
-    } else {
-      dispatch(createTask(taskData));
-    }
-    setShowForm(false);
+    updateStatusMutation.mutate({ taskId, status: newStatus });
   };
 
   if (isLoading) {
     return <div className="loading">Loading...</div>;
-  }
-
-  if (error) {
-    return <div className="error">{error}</div>;
   }
 
   return (
@@ -61,12 +101,36 @@ const Dashboard: React.FC = () => {
             <h1>Task Dashboard</h1>
             <p className="user-info">Welcome, {user?.name}</p>
           </div>
-          <button className="btn-create" onClick={handleCreateTask}>
-            Create New Task
-          </button>
+          <div className="header-actions">
+            {user?.role === 'admin' && (
+              <button className="btn-admin" onClick={() => window.location.href = '/admin'}>
+                Admin Panel
+              </button>
+            )}
+            <button className="btn-create" onClick={handleCreateTask}>
+              Create New Task
+            </button>
+          </div>
+        </div>
+        <div className="dashboard-stats">
+          <div className="stat-item">
+            <span className="stat-value">{tasks.length}</span>
+            <span className="stat-label">Total Tasks</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-value">
+              {tasks.filter((task) => task.status === 'completed').length}
+            </span>
+            <span className="stat-label">Completed</span>
+          </div>
+          <div className="stat-item">
+            <span className="stat-value">
+              {tasks.filter((task) => task.status === 'in-progress').length}
+            </span>
+            <span className="stat-label">In Progress</span>
+          </div>
         </div>
       </header>
-
       <main className="dashboard-content">
         <TaskList
           tasks={tasks}
@@ -75,12 +139,22 @@ const Dashboard: React.FC = () => {
           onStatusChange={handleStatusChange}
         />
       </main>
-
       {showForm && (
         <TaskForm
           task={selectedTask}
-          onClose={() => setShowForm(false)}
-          onSubmit={handleTaskSubmit}
+          onSubmit={(taskData) => {
+            if (selectedTask) {
+              updateTaskMutation.mutate({ ...taskData, id: selectedTask.id });
+            } else {
+              createTaskMutation.mutate(taskData);
+            }
+            setShowForm(false);
+            setSelectedTask(undefined);
+          }}
+          onClose={() => {
+            setShowForm(false);
+            setSelectedTask(undefined);
+          }}
         />
       )}
     </div>

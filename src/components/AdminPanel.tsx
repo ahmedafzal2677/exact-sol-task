@@ -1,26 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { fetchTasks, updateTask, deleteTask, updateTaskStatus, createTask } from '../store/taskSlice';
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../contexts/AuthContext';
+import { apiService } from '../services/api';
 import { Task } from '../types/Task';
 import TaskForm from './TaskForm';
 import './AdminPanel.css';
 
 const AdminPanel: React.FC = () => {
-  const dispatch = useAppDispatch();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
-  
-  const { tasks, isLoading } = useAppSelector(state => state.tasks);
-  const user = useAppSelector(state => state.auth.user);
 
-  useEffect(() => {
-    dispatch(fetchTasks());
-  }, [dispatch]);
+  const { data: tasks = [], isLoading } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: apiService.getTasks,
+  });
 
-  const handleCreateTask = () => {
-    setSelectedTask(undefined);
-    setShowForm(true);
-  };
+  const updateTaskMutation = useMutation({
+    mutationFn: apiService.updateTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: apiService.deleteTask,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ taskId, status }: { taskId: string; status: Task['status'] }) =>
+      apiService.updateTaskStatus(taskId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
@@ -29,21 +46,12 @@ const AdminPanel: React.FC = () => {
 
   const handleDeleteTask = (taskId: string) => {
     if (window.confirm('Are you sure you want to delete this task?')) {
-      dispatch(deleteTask(taskId));
+      deleteTaskMutation.mutate(taskId);
     }
   };
 
   const handleStatusChange = (taskId: string, newStatus: Task['status']) => {
-    dispatch(updateTaskStatus({ taskId, status: newStatus }));
-  };
-
-  const handleTaskSubmit = (taskData: Omit<Task, 'id'>) => {
-    if (selectedTask) {
-      dispatch(updateTask({ ...taskData, id: selectedTask.id }));
-    } else {
-      dispatch(createTask(taskData));
-    }
-    setShowForm(false);
+    updateStatusMutation.mutate({ taskId, status: newStatus });
   };
 
   if (isLoading) {
@@ -55,12 +63,14 @@ const AdminPanel: React.FC = () => {
       <header className="admin-header">
         <div className="header-content">
           <div>
-            <h1>Admin Dashboard</h1>
+            <h1>Admin Panel</h1>
             <p className="user-info">Welcome, {user?.name}</p>
           </div>
-          <button className="btn-create" onClick={handleCreateTask}>
-            Create New Task
-          </button>
+          <div className="header-actions">
+            <button className="btn-create" onClick={() => setShowForm(true)}>
+              Create New Task
+            </button>
+          </div>
         </div>
         <div className="admin-stats">
           <div className="stat-item">
@@ -69,13 +79,13 @@ const AdminPanel: React.FC = () => {
           </div>
           <div className="stat-item">
             <span className="stat-value">
-              {tasks.filter(task => task.status === 'completed').length}
+              {tasks.filter((task) => task.status === 'completed').length}
             </span>
             <span className="stat-label">Completed</span>
           </div>
           <div className="stat-item">
             <span className="stat-value">
-              {tasks.filter(task => task.status === 'in-progress').length}
+              {tasks.filter((task) => task.status === 'in-progress').length}
             </span>
             <span className="stat-label">In Progress</span>
           </div>
@@ -84,16 +94,27 @@ const AdminPanel: React.FC = () => {
 
       <main className="admin-content">
         <div className="task-grid">
-          {tasks.map(task => (
+          {tasks.map((task) => (
             <div key={task.id} className="task-card">
               <div className="task-header">
-                <h3>{task.title}</h3>
+                <h3 className="task-title">{task.title}</h3>
                 <span className={`priority-badge ${task.priority}`}>
                   {task.priority}
                 </span>
               </div>
+              
               <p className="task-description">{task.description}</p>
+              
               <div className="task-footer">
+                <span className={`status-badge ${task.status}`}>
+                  {task.status}
+                </span>
+                <span className="due-date">
+                  Due: {new Date(task.dueDate).toLocaleDateString()}
+                </span>
+              </div>
+
+              <div className="task-actions">
                 <select
                   value={task.status}
                   onChange={(e) => handleStatusChange(task.id, e.target.value as Task['status'])}
@@ -103,24 +124,18 @@ const AdminPanel: React.FC = () => {
                   <option value="in-progress">In Progress</option>
                   <option value="completed">Completed</option>
                 </select>
-                <div className="task-actions">
-                  <button 
-                    className="btn-edit"
-                    onClick={() => handleTaskClick(task)}
-                  >
-                    Edit
-                  </button>
-                  <button 
-                    className="btn-delete"
-                    onClick={() => handleDeleteTask(task.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-              <div className="task-meta">
-                <span>Assigned to: {task.userId}</span>
-                <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
+                <button
+                  className="btn-edit"
+                  onClick={() => handleTaskClick(task)}
+                >
+                  Edit
+                </button>
+                <button
+                  className="btn-delete"
+                  onClick={() => handleDeleteTask(task.id)}
+                >
+                  Delete
+                </button>
               </div>
             </div>
           ))}
@@ -130,8 +145,17 @@ const AdminPanel: React.FC = () => {
       {showForm && (
         <TaskForm
           task={selectedTask}
-          onClose={() => setShowForm(false)}
-          onSubmit={handleTaskSubmit}
+          onSubmit={(taskData) => {
+            if (selectedTask) {
+              updateTaskMutation.mutate({ ...taskData, id: selectedTask.id });
+            }
+            setShowForm(false);
+            setSelectedTask(undefined);
+          }}
+          onClose={() => {
+            setShowForm(false);
+            setSelectedTask(undefined);
+          }}
         />
       )}
     </div>
