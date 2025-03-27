@@ -47,10 +47,6 @@ function App() {
               }
             />
             
-            <Route
-              path="/unauthorized"
-              element={<div>You don't have permission to access this page.</div>}
-            />
           </Routes>
         </Router>
       </AuthProvider>

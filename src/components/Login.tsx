@@ -22,7 +22,6 @@ const Login: React.FC<LoginProps> = ({ isAdmin = false }) => {
     try {
       const user = await login(credentials.email, credentials.password);
       
-      // Check if the user is trying to access the correct login page
       if (isAdmin && user.role !== 'admin') {
         setError('Only administrators can access this login page');
         return;
@@ -33,7 +32,6 @@ const Login: React.FC<LoginProps> = ({ isAdmin = false }) => {
         return;
       }
 
-      // Navigate to the intended destination or default to appropriate dashboard
       const from = (location.state as any)?.from?.pathname || (isAdmin ? '/admin/dashboard' : '/dashboard');
       navigate(from, { replace: true });
     } catch (error) {

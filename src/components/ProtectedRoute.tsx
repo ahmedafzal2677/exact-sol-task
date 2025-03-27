@@ -12,7 +12,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = f
   const location = useLocation();
 
   if (!isAuthenticated) {
-    // Redirect to the appropriate login page based on the route
     return <Navigate to={adminOnly ? '/admin/login' : '/login'} state={{ from: location }} replace />;
   }
 
