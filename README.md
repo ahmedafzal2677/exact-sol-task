@@ -51,6 +51,9 @@ npm run dev
 
 2. Open your browser and navigate to `http://localhost:5173`
 
+### Important NOTE
+As I was assigned to do only the Front-end part(ReactJS), so the states assigned are temporary and will revert back to its original states on refresh
+
 ## Login Credentials
 
 ### Admin User
