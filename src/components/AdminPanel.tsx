@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { fetchTasks, updateTask, deleteTask, updateTaskStatus } from '../store/taskSlice';
+import { fetchTasks, updateTask, deleteTask, updateTaskStatus, createTask } from '../store/taskSlice';
 import { Task } from '../types/Task';
 import TaskForm from './TaskForm';
 import './AdminPanel.css';
@@ -16,6 +16,11 @@ const AdminPanel: React.FC = () => {
   useEffect(() => {
     dispatch(fetchTasks());
   }, [dispatch]);
+
+  const handleCreateTask = () => {
+    setSelectedTask(undefined);
+    setShowForm(true);
+  };
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
@@ -35,6 +40,8 @@ const AdminPanel: React.FC = () => {
   const handleTaskSubmit = (taskData: Omit<Task, 'id'>) => {
     if (selectedTask) {
       dispatch(updateTask({ ...taskData, id: selectedTask.id }));
+    } else {
+      dispatch(createTask(taskData));
     }
     setShowForm(false);
   };
@@ -48,14 +55,12 @@ const AdminPanel: React.FC = () => {
       <header className="admin-header">
         <div className="header-content">
           <div>
-            <h1>Admin Panel</h1>
+            <h1>Admin Dashboard</h1>
             <p className="user-info">Welcome, {user?.name}</p>
           </div>
-          <div className="header-actions">
-            <button className="btn-create" onClick={() => setShowForm(true)}>
-              Create New Task
-            </button>
-          </div>
+          <button className="btn-create" onClick={handleCreateTask}>
+            Create New Task
+          </button>
         </div>
         <div className="admin-stats">
           <div className="stat-item">
@@ -64,13 +69,13 @@ const AdminPanel: React.FC = () => {
           </div>
           <div className="stat-item">
             <span className="stat-value">
-              {tasks.filter((task) => task.status === 'completed').length}
+              {tasks.filter(task => task.status === 'completed').length}
             </span>
             <span className="stat-label">Completed</span>
           </div>
           <div className="stat-item">
             <span className="stat-value">
-              {tasks.filter((task) => task.status === 'in-progress').length}
+              {tasks.filter(task => task.status === 'in-progress').length}
             </span>
             <span className="stat-label">In Progress</span>
           </div>
@@ -79,27 +84,16 @@ const AdminPanel: React.FC = () => {
 
       <main className="admin-content">
         <div className="task-grid">
-          {tasks.map((task) => (
+          {tasks.map(task => (
             <div key={task.id} className="task-card">
               <div className="task-header">
-                <h3 className="task-title">{task.title}</h3>
+                <h3>{task.title}</h3>
                 <span className={`priority-badge ${task.priority}`}>
                   {task.priority}
                 </span>
               </div>
-              
               <p className="task-description">{task.description}</p>
-              
               <div className="task-footer">
-                <span className={`status-badge ${task.status}`}>
-                  {task.status}
-                </span>
-                <span className="due-date">
-                  Due: {new Date(task.dueDate).toLocaleDateString()}
-                </span>
-              </div>
-
-              <div className="task-actions">
                 <select
                   value={task.status}
                   onChange={(e) => handleStatusChange(task.id, e.target.value as Task['status'])}
@@ -109,18 +103,24 @@ const AdminPanel: React.FC = () => {
                   <option value="in-progress">In Progress</option>
                   <option value="completed">Completed</option>
                 </select>
-                <button
-                  className="btn-edit"
-                  onClick={() => handleTaskClick(task)}
-                >
-                  Edit
-                </button>
-                <button
-                  className="btn-delete"
-                  onClick={() => handleDeleteTask(task.id)}
-                >
-                  Delete
-                </button>
+                <div className="task-actions">
+                  <button 
+                    className="btn-edit"
+                    onClick={() => handleTaskClick(task)}
+                  >
+                    Edit
+                  </button>
+                  <button 
+                    className="btn-delete"
+                    onClick={() => handleDeleteTask(task.id)}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+              <div className="task-meta">
+                <span>Assigned to: {task.userId}</span>
+                <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
               </div>
             </div>
           ))}
@@ -130,11 +130,8 @@ const AdminPanel: React.FC = () => {
       {showForm && (
         <TaskForm
           task={selectedTask}
+          onClose={() => setShowForm(false)}
           onSubmit={handleTaskSubmit}
-          onClose={() => {
-            setShowForm(false);
-            setSelectedTask(undefined);
-          }}
         />
       )}
     </div>
